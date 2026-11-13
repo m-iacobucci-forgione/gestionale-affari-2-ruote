@@ -607,8 +607,15 @@ function renderHdr(){
 }
 function jwtPayload(t){try{const b=t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');return JSON.parse(decodeURIComponent(escape(atob(b+'==='.slice((b.length+3)%4)))));}catch(_){return {}}}
 function showLogin(msg){
+  verified=false; state.motos=[]; state.loaded=false;
   $('#loginmsg').innerHTML=msg?`<div class="banner bad">${esc(msg)}</div>`:'';
+  $('#gbtn').style.display='flex';
   $('#login').classList.add('open'); renderHdr(); initGoogle();
+}
+function showVerifying(){
+  $('#gbtn').style.display='none';
+  $('#loginmsg').innerHTML='<div class="hint" style="padding:10px 0">Verifica dell\'account in corso…</div>';
+  $('#login').classList.add('open');
 }
 function logout(msg){
   token=null; state.email='';
@@ -619,9 +626,9 @@ function logout(msg){
 function onCredential(resp){
   token=resp.credential; const p=jwtPayload(token); state.email=p.email||'';
   try{localStorage.setItem('a2r_tok',JSON.stringify({v:token,exp:p.exp}))}catch(_){}
-  $('#login').classList.remove('open'); load();
+  showVerifying(); load();
 }
-let gInit=false;
+let gInit=false, verified=false;
 function initGoogle(){
   if(!CFG.CLIENT_ID||/INCOLLA/.test(CFG.CLIENT_ID)||!CFG.API_URL||/INCOLLA/.test(CFG.API_URL)){
     $('#loginmsg').innerHTML='<div class="banner warn">App non ancora configurata: inserisci CLIENT_ID e API_URL nel file config.js (vedi la guida nel README).</div>';return;}
@@ -645,7 +652,9 @@ async function load(){
     const r=await api('list');
     state.motos=r.motos||[]; state.config={...state.config,...(r.config||{})}; if(r.email)state.email=r.email;
     state.loaded=true; state.loadErr=false; state.err=''; lastLoad=Date.now();
-  }catch(e){if(!e.auth){state.loaded=true;state.loadErr=!state.motos.length;state.err='Caricamento non riuscito: '+(e.error||e.message||'errore');}}
+    if(!verified){verified=true;$('#login').classList.remove('open');}
+  }catch(e){if(!e.auth&&!verified){$('#loginmsg').innerHTML=`<div class="banner bad">Connessione non riuscita: ${esc(e.error||e.message||'errore')}</div><button class="btn l" id="retry">Riprova</button>`;$('#retry').onclick=()=>{showVerifying();load();};}
+    else if(!e.auth){state.loaded=true;state.loadErr=!state.motos.length;state.err='Caricamento non riuscito: '+(e.error||e.message||'errore');}}
   finally{setBusy('');}
   if(!draft)render();
 }
@@ -661,7 +670,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 render();
 try{const t=JSON.parse(localStorage.getItem('a2r_tok')||'null');if(t&&t.v&&t.exp*1000>Date.now()+60000){token=t.v;state.email=jwtPayload(t.v).email||'';}}catch(_){}
-if(token)load(); else showLogin('');
+if(token){showVerifying();load();} else showLogin('');
 })();
 </script>
 </body>
