@@ -512,7 +512,7 @@ function updateSum(){
   const c=calc(draft);
   const half=v=>`<span class="half num">(${eur(v/2)} a testa)</span>`;
   $('#sum').innerHTML=`<div><small>Acquisto</small><b class="num">${c.acq?eur(c.acq):'—'}</b>${c.acq?half(c.acq):''}</div>
-    <div><small>Spese</small><b class="num">${eur(c.costi)}</b>${c.costi?half(c.costi):''}</div>
+    <div><small>Spese subito</small><b class="num">${eur(c.speseSubito)}</b>${c.speseSubito?half(c.speseSubito):''}${c.speseConsegna?`<span class="half num" style="color:#ffd2bf">+ ${eur(c.speseConsegna)} alla consegna</span>`:''}</div>
     <div><small>${c.stimato?'Vendita (stima)':'Venduta a'}</small><b class="num">${c.ricavo?eur(c.ricavo):'—'}</b>${c.ricavo?half(c.ricavo):''}</div>
     <div><small>Netto${n(state.config.aliquota)?' post-tasse':''}</small><b class="num" style="color:${!c.ok?'#fff':c.netto>=0?'#7ee2a8':'#ff9b8f'}">${c.ok?eur(c.netto):'—'}</b>${c.ok?half(c.netto):''}</div>`;
   ['bollo','rev','tagl'].forEach(k=>{const el=$('#sc_'+k);if(!el)return;const s=c.sc.find(x=>x.k===k);
