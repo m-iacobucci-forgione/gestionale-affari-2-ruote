@@ -97,7 +97,8 @@ details.sec[open]>summary::after{content:"－"}
 .calc b{font-size:18px}
 .costs{padding:0 14px 14px}
 .crow{display:grid;grid-template-columns:1fr 1fr;gap:6px;border:1px solid var(--line);border-radius:10px;padding:8px;margin-bottom:8px;background:#fdfcfa}
-@media(min-width:620px){.crow{grid-template-columns:150px 1fr 110px 140px 90px}}
+@media(min-width:620px){.crow{grid-template-columns:140px 1fr 100px 150px 130px 90px}}
+.inv{font-size:12px;color:var(--mut)}
 .crow select,.crow input{padding:8px;border:1px solid var(--line);border-radius:8px;font:inherit;width:100%;background:#fff}
 .crow .x{border:0;background:var(--badbg);color:var(--bad);border-radius:8px;font-weight:600;padding:8px;min-height:38px}
 .ctot{display:flex;justify-content:space-between;font-weight:700;padding:6px 2px 0}
@@ -308,7 +309,9 @@ function calc(m){
   const bollo=n(m.costoBollo)&&(!voce('bollo')||voce('bollo').attiva)?n(m.costoBollo):0;
   const revis=n(m.costoRevisione)&&(!voce('rev')||voce('rev').attiva)?n(m.costoRevisione):0;
   const inAttesa=(n(m.costoBollo)-bollo)+(n(m.costoRevisione)-revis);
-  const costi=(m.costi||[]).reduce((s,c)=>s+n(c.importo),0)+bollo+revis;
+  const speseConsegna=(m.costi||[]).filter(c=>c.quando==='consegna').reduce((s,c)=>s+n(c.importo),0);
+  const speseSubito=(m.costi||[]).filter(c=>c.quando!=='consegna').reduce((s,c)=>s+n(c.importo),0)+bollo+revis;
+  const costi=speseSubito+speseConsegna;
   const acq=n(m.nettoVenditore);
   const venduta=m.stato==='Venduta';
   const ricavo=n(m.prezzoVendita)||n(m.prezzoStimato)||n(m.prezzoPubblico);
@@ -323,7 +326,7 @@ function calc(m){
   if(inizio){const a=new Date(inizio),b=venduta&&m.dataVendita?new Date(m.dataVendita):new Date();giorni=Math.max(0,Math.round((b-a)/864e5));}
   const anticipi={};
   (m.costi||[]).forEach(c=>{if(c.pagatoDa&&n(c.importo))anticipi[c.pagatoDa]=(anticipi[c.pagatoDa]||0)+n(c.importo)});
-  return {costi,acq,ricavo,ok,lordo,tasse,netto,offerta,margRich,stima,giorni,venduta,anticipi,inAttesa,sc,stimato:!n(m.prezzoVendita)};
+  return {costi,speseSubito,speseConsegna,investito:n(m.nettoVenditore)+speseSubito,acq,ricavo,ok,lordo,tasse,netto,offerta,margRich,stima,giorni,venduta,anticipi,inAttesa,sc,stimato:!n(m.prezzoVendita)};
 }
 const SC_TXT={green:'In regola',yellow:'Scade entro un mese',red:'Scaduto'};
 const scChip=s=>`<span class="sdot s-${s.col}">${esc(s.l)} ${esc(fmtD(s.d))}</span>`;
@@ -364,7 +367,8 @@ function viewLista(){
         <div class="mtitle">${esc(titolo(m))}</div>
         <div class="msub">${esc(sub)||'&nbsp;'}</div>
         <div class="mrow"><span class="badge ${badgeCls(m.stato)}">${esc(m.stato||'—')}</span>
-          <span class="num" style="font-size:13px">${c.acq?eur(c.acq):m.prezzoRichiesto?'rich. '+eur(n(m.prezzoRichiesto)):''}${c.ok?` → <b class="${c.netto>=0?'pos':'neg'}">${eur(c.netto)}</b>`:''}</span></div>
+          <span class="num" style="font-size:13px">${c.acq?`<span class="inv">Acquisto + spese</span> ${eur(c.investito)}`:m.prezzoRichiesto?'rich. '+eur(n(m.prezzoRichiesto)):''}${c.ok?` → <b class="${c.netto>=0?'pos':'neg'}">${eur(c.netto)}</b>`:''}</span></div>
+        ${c.acq&&c.speseConsegna?`<div class="inv num" style="text-align:right">+ ${eur(c.speseConsegna)} di spese alla consegna</div>`:''}
         ${link||urg.length?`<div class="mrow" style="justify-content:flex-start;gap:6px">${link}${urg.map(scChip).join('')}</div>`:''}
       </div></div>`;}).join('');
   const all=tutteScadenze(), red=all.filter(x=>x.s.col==='red').length, yel=all.filter(x=>x.s.col==='yellow').length;
@@ -378,7 +382,7 @@ function viewDash(){
   const tratt=A.filter(m=>G_TRATT.includes(m.stato));
   const stock=A.filter(m=>G_STOCK.includes(m.stato));
   const vend=A.filter(m=>m.stato==='Venduta');
-  const immob=stock.reduce((s,m)=>{const c=calc(m);return s+c.acq+c.costi},0);
+  const immob=stock.reduce((s,m)=>s+calc(m).investito,0);
   const potenz=stock.reduce((s,m)=>{const c=calc(m);return s+(c.ok?c.netto:0)},0);
   const vc=vend.map(m=>({m,c:calc(m)}));
   const lordo=vc.reduce((s,x)=>s+x.c.lordo,0), netto=vc.reduce((s,x)=>s+x.c.netto,0);
@@ -395,12 +399,12 @@ function viewDash(){
     :'<div class="hint">Nessuna scadenza: compila scadenza bollo, ultima revisione o data ultimo tagliando nelle schede.</div>'}</div>`;
   return `${scPanel}<div class="kpis">
     <div class="kpi"><small>In trattativa</small><b class="num">${tratt.length}</b><span>${tratt.filter(m=>m.stato==='Da contattare').length} da contattare</span></div>
-    <div class="kpi"><small>In stock</small><b class="num">${stock.length}</b><span>capitale fermo ${eur(immob)}</span></div>
+    <div class="kpi"><small>In stock</small><b class="num">${stock.length}</b><span>soldi fuori ora: ${eur(immob)}</span></div>
     <div class="kpi"><small>Vendute</small><b class="num">${vend.length}</b><span>${ggMed!=null?'in media '+ggMed+' giorni in stock':'—'}</span></div>
     <div class="kpi"><small>Netto realizzato${aliq?' (dopo '+aliq+'% tasse stimate)':''}</small><b class="num ${netto>=0?'pos':'neg'}">${eur(netto)}</b><span>${vend.length?'media '+eur(netto/vend.length)+' / moto · '+eur(netto/sc.length)+' a testa':'—'}</span></div>
   </div>
-  <div class="panel"><h3>In stock — margine stimato ${eur(potenz)}</h3>${stock.length?`<div class="tw"><table><tr><th>Moto</th><th class="r">Acquisto</th><th class="r">Spese</th><th class="r">Prezzo stimato</th><th class="r">Netto stimato</th><th class="r">Giorni</th></tr>
-    ${stock.map(m=>{const c=calc(m);return `<tr><td><button class="lnk" data-id="${esc(m.id)}">${esc(titolo(m))}</button></td><td class="r num">${eur(c.acq)}</td><td class="r num">${eur(c.costi)}</td><td class="r num">${c.ricavo?eur(c.ricavo):'—'}</td><td class="r num ${c.netto>=0?'pos':'neg'}">${c.ok?eur(c.netto):'—'}</td><td class="r num">${c.giorni??'—'}</td></tr>`}).join('')}</table></div>`:'<div class="hint">Nessuna moto in stock.</div>'}</div>
+  <div class="panel"><h3>In stock — margine stimato ${eur(potenz)}</h3>${stock.length?`<div class="tw"><table><tr><th>Moto</th><th class="r">Acquisto</th><th class="r">Spese subito</th><th class="r">Alla consegna</th><th class="r">Prezzo stimato</th><th class="r">Netto stimato</th><th class="r">Giorni</th></tr>
+    ${stock.map(m=>{const c=calc(m);return `<tr><td><button class="lnk" data-id="${esc(m.id)}">${esc(titolo(m))}</button></td><td class="r num">${eur(c.acq)}</td><td class="r num">${eur(c.speseSubito)}</td><td class="r num">${eur(c.speseConsegna)}</td><td class="r num">${c.ricavo?eur(c.ricavo):'—'}</td><td class="r num ${c.netto>=0?'pos':'neg'}">${c.ok?eur(c.netto):'—'}</td><td class="r num">${c.giorni??'—'}</td></tr>`}).join('')}</table></div>`:'<div class="hint">Nessuna moto in stock.</div>'}</div>
   <div class="panel"><h3>Vendute — lordo ${eur(lordo)} · netto ${eur(netto)}</h3>${vend.length?`<div class="tw"><table><tr><th>Moto</th><th>Venduta</th><th class="r">Acquisto</th><th class="r">Spese</th><th class="r">Vendita</th><th class="r">Netto</th></tr>
     ${vc.sort((a,b)=>(b.m.dataVendita||'').localeCompare(a.m.dataVendita||'')).map(({m,c})=>`<tr><td><button class="lnk" data-id="${esc(m.id)}">${esc(titolo(m))}</button></td><td>${esc(fmtD(m.dataVendita))}</td><td class="r num">${eur(c.acq)}</td><td class="r num">${eur(c.costi)}</td><td class="r num">${eur(c.ricavo)}${c.stimato?'*':''}</td><td class="r num ${c.netto>=0?'pos':'neg'}">${eur(c.netto)}</td></tr>`).join('')}</table></div><div class="hint">* prezzo di vendita effettivo non inserito: uso il prezzo stimato.</div>`:'<div class="hint">Nessuna vendita ancora.</div>'}</div>
   <div class="panel"><h3>Spese anticipate per socio</h3><div class="hint" style="margin-bottom:8px">Somma delle spese con "pagato da" compilato, su tutte le moto non scartate.</div>
@@ -461,11 +465,13 @@ function costsHTML(){
     <select data-c="tipo" ${dis}>${TIPI_COSTO.map(x=>`<option ${x===c.tipo?'selected':''}>${esc(x)}</option>`).join('')}</select>
     <input data-c="descr" placeholder="Descrizione" value="${esc(c.descr)}" ${dis}>
     <input data-c="importo" type="number" inputmode="decimal" step="any" placeholder="€" value="${esc(c.importo)}" ${dis}>
+    <select data-c="quando" ${dis}>${[['acquisto','Subito (all\'acquisto)'],['consegna','Alla consegna']].map(([v,l])=>`<option value="${v}" ${(c.quando||'acquisto')===v?'selected':''}>${l}</option>`).join('')}</select>
     <select data-c="pagatoDa" ${dis}>${['',...soci(),'Cassa comune'].map(x=>`<option ${x===c.pagatoDa?'selected':''} value="${esc(x)}">${esc(x||'Pagato da…')}</option>`).join('')}</select>
     ${state.readOnly?'':`<button class="x" data-rmc="${i}">🗑 Elimina</button>`}</div>`).join('');
   return `<div class="costs">${rows||'<div class="hint" style="margin-bottom:8px">Nessuna spesa inserita.</div>'}
     ${state.readOnly?'':'<button class="btn l" id="addc">＋ Aggiungi spesa</button>'}
-    <div class="ctot"><span>Totale spese</span><span class="num" id="ctot">—</span></div></div>`;
+    <div class="ctot"><span>Totale spese</span><span class="num" id="ctot">—</span></div>
+    <div class="hint num" id="csplit" style="text-align:right"></div></div>`;
 }
 function attsHTML(){
   const items=draft.allegati.map((a,i)=>{
@@ -516,6 +522,7 @@ function updateSum(){
   const o=$('#offMax'); if(o)o.textContent=c.stima?eur(c.offerta):'inserisci prezzo stimato';
   const mr=$('#margRich'); if(mr)mr.innerHTML=c.stima&&c.margRich!=null?`Comprando al prezzo richiesto: margine <b class="${c.margRich>=0?'pos':'neg'}">${eur(c.margRich)}</b>`:'';
   const ct=$('#ctot'); if(ct)ct.textContent=eur(c.costi)+(c.inAttesa?` (+ ${eur(c.inAttesa)} in scadenza, non ancora conteggiati)`:'');
+  const cs=$('#csplit'); if(cs)cs.textContent=c.costi?`Subito: ${eur(c.speseSubito)} · Alla consegna: ${eur(c.speseConsegna)}`:'';
   const d=$('#dupe'); if(d){
     const dup=state.motos.filter(m=>m.id!==draft.id&&((draft.targa&&m.targa===draft.targa)||(draft.telaio&&m.telaio===draft.telaio)));
     d.innerHTML=dup.length?`<div class="dupe">⚠ Targa o telaio già presenti in: ${dup.map(m=>esc(titolo(m))+' ('+esc(m.stato)+')').join(', ')}</div>`:'';
@@ -545,7 +552,7 @@ function bindEditor(){
     if(id==='f_stato'&&e.target.value==='Venduta'){const dv=$('#f_dataVendita');if(dv&&!dv.value)dv.value=today();}
     updateSum();};
   const sv=$('#edsave'); if(sv)sv.onclick=async()=>{sv.disabled=true;const ok=await save();sv.disabled=false;if(ok){toast('Salvato');closeEditor();}};
-  const ad=$('#addc'); if(ad)ad.onclick=()=>{readForm();draft.costi.push({tipo:'Trasporto',descr:'',importo:'',pagatoDa:''});rerenderSec('costi')};
+  const ad=$('#addc'); if(ad)ad.onclick=()=>{readForm();draft.costi.push({tipo:'Trasporto',descr:'',importo:'',quando:'acquisto',pagatoDa:''});rerenderSec('costi')};
   ed.querySelectorAll('[data-rmc]').forEach(b=>b.onclick=()=>{readForm();draft.costi.splice(+b.dataset.rmc,1);rerenderSec('costi')});
   ed.querySelectorAll('[data-lb]').forEach(b=>b.onclick=()=>openLb(b.dataset.lb));
   ed.querySelectorAll('[data-rma]').forEach(b=>b.onclick=()=>removeAtt(+b.dataset.rma));
