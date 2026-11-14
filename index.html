@@ -131,7 +131,19 @@ td.r,th.r{text-align:right}
 .lnk{background:none;border:0;padding:0;color:var(--ink);text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px;font:inherit;text-align:left}
 /* modal */
 #modal{position:fixed;inset:0;z-index:60;background:#0008;display:none;align-items:center;justify-content:center;padding:18px}
-#modal.open{display:flex}
+#modal.open,#pick.open{display:flex}
+#pick{position:fixed;inset:0;z-index:60;background:#0008;display:none;align-items:center;justify-content:center;padding:18px}
+#pick .box{background:#fff;border-radius:14px;max-width:460px;width:100%;padding:18px;max-height:90vh;overflow-y:auto}
+#pick .acts{display:flex;justify-content:flex-end;gap:8px}
+.plist{display:grid;gap:6px;margin-bottom:12px}
+.plist label{display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:9px 10px;cursor:pointer}
+.plist label:has(input:checked){border-color:var(--acc);background:var(--acc2)}
+.pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.pgrid label{position:relative;border:2px solid var(--line);border-radius:10px;overflow:hidden;cursor:pointer;aspect-ratio:4/3;background:#ece8e1 center/cover no-repeat;display:grid;place-items:center;font-size:12px;color:var(--mut);text-align:center}
+.pgrid label:has(input:checked){border-color:var(--acc);box-shadow:0 0 0 2px var(--acc)}
+.pgrid input{position:absolute;opacity:0}
+.pth{position:absolute;inset:0;background:center/cover no-repeat;display:grid;place-items:center}
+.plabel{font-size:12.5px;color:var(--mut);font-weight:600;margin:4px 0 6px}
 #modal .box{background:#fff;border-radius:14px;max-width:420px;width:100%;padding:18px}
 #modal p{margin:0 0 16px}
 #modal .acts{display:flex;justify-content:flex-end;gap:8px}
@@ -171,6 +183,7 @@ td.r,th.r{text-align:right}
 <button class="fab" id="fab">＋ Nuova moto</button>
 
 <div id="ed"></div>
+<div id="pick"><div class="box"><h3 id="ptitle" style="margin:0 0 10px;font-size:16px"></h3><div id="pbody"></div><div class="acts" style="margin-top:14px"><button class="btn l" id="pno">Annulla</button><button class="btn p" id="pok">Crea PDF</button></div></div></div>
 <div id="modal"><div class="box"><p id="mtxt"></p><div class="acts"><button class="btn l" id="mno">Annulla</button><button class="btn d" id="myes">Conferma</button></div></div></div>
 <div id="lb"><img id="lbimg" alt=""><a id="lbdrive" href="#" target="_blank" rel="noopener">Apri su Google Drive</a><button class="btn g" id="lbclose">Chiudi</button></div>
 <div id="login"><div class="panel"><h2>Gestionale Affari a 2 Ruote</h2><p class="hint" style="margin-bottom:16px">Entra con il tuo account Google. Possono accedere solo gli account autorizzati.</p>
@@ -241,7 +254,11 @@ const SEZIONI = [
   {k:'stato',l:'Stato pratica',ty:'select',o:STATI},
   {k:'fonte',l:'Fonte annuncio',ty:'select',o:['','Subito','Moto.it','AutoScout24','Facebook Marketplace','Wallapop','eBay','Passaparola','Altro']},
   {k:'link',l:'Link annuncio',ty:'url'},
-  {k:'venditore',l:'Venditore'},
+  {k:'venditore',l:'Venditore (nome e cognome)'},
+  {k:'venditoreCF',l:'Codice fiscale venditore',up:1},
+  {k:'venditoreIndirizzo',l:'Indirizzo di residenza venditore',w:1},
+  {k:'venditoreNascitaLuogo',l:'Luogo di nascita venditore'},
+  {k:'venditoreNascita',l:'Data di nascita venditore',ty:'date'},
   {k:'telefono',l:'Telefono venditore',ty:'tel'},
   {k:'cittaVenditore',l:'Città / zona venditore'},
   {k:'prezzoRichiesto',l:'Prezzo richiesto in annuncio (€)',ty:'number'},
@@ -253,6 +270,8 @@ const SEZIONI = [
  {id:'agenzia', t:'🏢 Agenzia pratiche', f:[
   {k:'agenziaNome',l:'Nome agenzia'},
   {k:'agenziaTelefono',l:'Numero di telefono',ty:'tel'},
+  {k:'dataPassaggio',l:'Data passaggio di proprietà',ty:'date'},
+  {k:'oraPassaggio',l:'Ora passaggio di proprietà',ty:'time'},
   {k:'agenziaNote',l:'Note',ty:'textarea',w:1},
  ]},
  {id:'vend', t:'✅ Vendita', f:[
@@ -262,10 +281,11 @@ const SEZIONI = [
   {k:'telefonoAcquirente',l:'Telefono acquirente',ty:'tel'},
   {k:'canaleVendita',l:'Canale vendita',ty:'select',o:['','Subito','Moto.it','AutoScout24','Facebook Marketplace','Grossista','Passaparola','Altro']},
  ]},
+ {id:'pdf', t:'🖨️ Stampa PDF', open:true, pdf:1},
  {id:'all', t:'📷 Foto e documenti', open:true, atts:1},
 ];
 
-const ORDINE=['veic','perizia','costi','tratt','agenzia','vend','all'];
+const ORDINE=['veic','perizia','costi','tratt','agenzia','vend','pdf','all'];
 SEZIONI.sort((x,y)=>ORDINE.indexOf(x.id)-ORDINE.indexOf(y.id));
 
 const state = {motos:[], config:{soci:['Manuel','Lorenzo'], aliquota:0}, busy:'', email:'', loadErr:false, view:'lista', filtro:'attive', q:'', loaded:false, err:'', readOnly:false, uploading:0};
@@ -418,6 +438,15 @@ function viewImp(){
    <div class="f"><label>Nome socio 2</label><input type="text" id="s2" value="${esc(s[1]||'')}"></div>
    <div class="f"><label>Aliquota fiscale stimata sul margine (%)</label><input type="number" id="aliq" value="${esc(state.config.aliquota??0)}" min="0" max="100" step="0.5">
    <div class="hint">Usata per il "netto in tasca". Lasciala a 0 se non vuoi stimarla, ma il numero mostrato sarà al lordo delle tasse. Chiedi al commercialista la percentuale giusta per la vostra forma.</div></div>
+   <h3 style="margin-top:18px">Dati di ${esc(s[0]||'Socio 1')} e ${esc(s[1]||'Socio 2')} per contratti e schede</h3>
+   <div class="hint" style="margin-bottom:10px">Quando crei un PDF scegli chi compare: i suoi dati vanno nel contratto come acquirente, nome e telefono nella scheda moto.</div>
+   ${[0,1].map(i=>{const K=acquirente(i);return `<div style="border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px"><div style="font-weight:700;margin-bottom:8px">${esc(s[i]||'Socio '+(i+1))}</div>
+   <div class="f"><label>Nome e cognome</label><input type="text" id="k${i}_nome" value="${esc(K.nome)}"></div>
+   <div class="f"><label>Codice fiscale</label><input type="text" id="k${i}_cf" value="${esc(K.cf)}" style="text-transform:uppercase"></div>
+   <div class="f"><label>Indirizzo di residenza</label><input type="text" id="k${i}_ind" value="${esc(K.indirizzo)}"></div>
+   <div class="f"><label>Luogo di nascita</label><input type="text" id="k${i}_nl" value="${esc(K.nascitaLuogo)}"></div>
+   <div class="f"><label>Data di nascita</label><input type="date" id="k${i}_nd" value="${esc(K.nascitaData)}"></div>
+   <div class="f"><label>Telefono</label><input type="tel" id="k${i}_tel" value="${esc(K.telefono)}"></div></div>`}).join('')}
    <button class="btn p" id="saveimp" ${state.readOnly?'disabled':''}>Salva impostazioni</button></div>`;
 }
 function bindView(){
@@ -427,7 +456,8 @@ function bindView(){
   document.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{state.filtro=b.dataset.f;render()});
   const q=$('#q'); if(q){q.oninput=e=>{state.q=e.target.value;const pos=e.target.selectionStart;render();const nq=$('#q');nq.focus();try{nq.setSelectionRange(pos,pos)}catch(_){}}}
   const sv=$('#saveimp'); if(sv)sv.onclick=async()=>{
-    const cfg={soci:[$('#s1').value.trim()||'Socio 1',$('#s2').value.trim()||'Socio 2'],aliquota:n($('#aliq').value)};
+    const cfg={soci:[$('#s1').value.trim()||'Socio 1',$('#s2').value.trim()||'Socio 2'],aliquota:n($('#aliq').value),
+      acquirenti:[0,1].map(i=>({nome:$('#k'+i+'_nome').value.trim(),cf:$('#k'+i+'_cf').value.trim().toUpperCase(),indirizzo:$('#k'+i+'_ind').value.trim(),nascitaLuogo:$('#k'+i+'_nl').value.trim(),nascitaData:$('#k'+i+'_nd').value,telefono:$('#k'+i+'_tel').value.trim()}))};
     setBusy('Salvataggio…');try{await api('config',{config:cfg});state.config={...state.config,...cfg};toast('Impostazioni salvate');render();}catch(e){if(!e.auth)toast('Errore: '+(e.error||e.message))}finally{setBusy('')}};
   const csv=$('#csv'); if(csv)csv.onclick=async()=>{
     const cols=['codice','stato','marca','modello','anno','km','targa','telaio','venditore','telefono','fonte','link','nettoVenditore','prezzoStimato','prezzoVendita','dataConsegna','dataVendita','scadenzaBollo','agenziaNome'];
@@ -493,7 +523,7 @@ function renderEditor(){
       <div class="sum" id="sum"></div></div>
     <div class="edbody">
             ${SEZIONI.map(s=>`<details class="sec" ${s.open?'open':''} data-sec="${s.id}"><summary>${esc(s.t)}</summary>
-        ${s.costs?costsHTML():s.atts?attsHTML():`<div class="grid">${s.f.map(fieldHTML).join('')}</div>`}</details>`).join('')}
+        ${s.costs?costsHTML():s.atts?attsHTML():s.pdf?pdfHTML():`<div class="grid">${s.f.map(fieldHTML).join('')}</div>`}</details>`).join('')}
       ${!draftIsNew&&!state.readOnly?'<button class="btn d" id="eddel" style="margin-top:10px">Elimina scheda</button>':''}
     </div>`;
   bindEditor(); updateSum(); applyThumbs();
@@ -557,6 +587,8 @@ function bindEditor(){
   ed.querySelectorAll('[data-lb]').forEach(b=>b.onclick=()=>openLb(b.dataset.lb));
   ed.querySelectorAll('[data-rma]').forEach(b=>b.onclick=()=>removeAtt(+b.dataset.rma));
   const fi=$('#afile'); if(fi)fi.onchange=e=>uploadFiles([...e.target.files]);
+  const bc=$('#pdfContratto'); if(bc)bc.onclick=()=>creaContratto();
+  const bs=$('#pdfScheda'); if(bs)bs.onclick=()=>creaScheda();
   const del=$('#eddel'); if(del)del.onclick=async()=>{
     if(!await confirmBox(`Eliminare definitivamente "${titolo(draft)}" con tutti i suoi allegati?`))return;
     setBusy('Eliminazione…');try{await api('delete',{id:draft.id});state.motos=state.motos.filter(m=>m.id!==draft.id);toast('Scheda eliminata');closeEditor();}
@@ -654,6 +686,148 @@ async function openLb(id){
   $('#lbimg').src=thumbCache[id]||''; $('#lbdrive').href=a.url||'#'; $('#lb').classList.add('open');
   if(/heic|heif/i.test(a.type||''))return;
   try{const r=await api('file',{id});if($('#lb').classList.contains('open'))$('#lbimg').src='data:'+r.mime+';base64,'+r.data;}catch(_){}
+}
+
+/* ---------- PDF: contratto e scheda moto ---------- */
+function pdfHTML(){
+  return `<div class="atts"><div class="upl">
+    <button class="btn p" id="pdfContratto" type="button">📄 Contratto di acquisto</button>
+    <button class="btn l" id="pdfScheda" type="button">🏍️ Scheda moto per l'acquirente</button></div>
+    <div class="hint" style="margin-top:8px">Il contratto usa i dati del venditore (Trattativa), del veicolo e i vostri dati (Impostazioni). La scheda moto non contiene prezzi d'acquisto, spese né dati del venditore.</div></div>`;
+}
+let pdfLib=null;
+function acquirente(i){const A=state.config.acquirenti||[];return A[i]||(i===0?state.config.contratto:null)||{};}
+function pickDialog(title,bodyHTML,okLabel){return new Promise(res=>{
+  $('#ptitle').textContent=title;$('#pbody').innerHTML=bodyHTML;$('#pok').textContent=okLabel||'Crea PDF';$('#pick').classList.add('open');applyThumbs();
+  const done=v=>{$('#pick').classList.remove('open');$('#pok').onclick=$('#pno').onclick=null;res(v)};
+  $('#pok').onclick=()=>{const o={};$('#pbody').querySelectorAll('input:checked').forEach(x=>o[x.name]=x.value);done(o)};
+  $('#pno').onclick=()=>done(null);});}
+const sociOpts=(nessuno)=>`<div class="plist">${soci().map((nm,i)=>{const K=acquirente(i);return `<label><input type="radio" name="socio" value="${i}" ${i===0?'checked':''}> <span><b>${esc(nm)}</b>${K.nome?' – '+esc(K.nome):' <span class="hint">(dati da compilare in Impostazioni)</span>'}</span></label>`}).join('')}${nessuno?'<label><input type="radio" name="socio" value="-1"> <span>Nessun nome</span></label>':''}</div>`;
+function loadScript(src){return new Promise((res,rej)=>{const t=document.createElement('script');t.src=src;t.onload=res;t.onerror=()=>rej(new Error('Impossibile caricare '+src));document.head.appendChild(t);});}
+async function pdfmakeReady(){
+  if(window.pdfMake&&window.pdfMake.vfs)return window.pdfMake;
+  if(!pdfLib)pdfLib=(async()=>{await loadScript('https://cdn.jsdelivr.net/npm/pdfmake@0.2.10/build/pdfmake.min.js');await loadScript('https://cdn.jsdelivr.net/npm/pdfmake@0.2.10/build/vfs_fonts.js');})();
+  try{await pdfLib;}catch(e){pdfLib=null;throw e;}
+  return window.pdfMake;
+}
+const fmtIT=d=>d?new Date(d+'T12:00:00').toLocaleDateString('it-IT'):'';
+const L_='____________________';
+const v_=(x,l)=>{x=String(x??'').trim();return x||(l||L_);};
+function numLettere(num){
+  num=Math.round(num);if(!num)return 'zero';
+  const U=['','uno','due','tre','quattro','cinque','sei','sette','otto','nove','dieci','undici','dodici','tredici','quattordici','quindici','sedici','diciassette','diciotto','diciannove'];
+  const D=['','','venti','trenta','quaranta','cinquanta','sessanta','settanta','ottanta','novanta'];
+  const c100=x=>{if(x<20)return U[x];let t=D[Math.floor(x/10)];const u=x%10;if(u===1||u===8)t=t.slice(0,-1);return t+U[u];};
+  const c1000=x=>{const h=Math.floor(x/100),r=x%100;let hs=h?(h===1?'cento':U[h]+'cento'):'';if(hs&&Math.floor(r/10)===8)hs=hs.slice(0,-1);return hs+(r?c100(r):'');};
+  let out='';const mil=Math.floor(num/1e6),th=Math.floor(num%1e6/1000),r=num%1000;
+  if(mil)out+=mil===1?'unmilione':c1000(mil)+'milioni';
+  if(th)out+=th===1?'mille':c1000(th)+'mila';
+  out+=c1000(r);
+  if(num>3&&num%10===3&&num%100!==13)out=out.replace(/tre$/,'tré');
+  return out;
+}
+async function scarica(dd,nome){
+  setBusy('Creo il PDF…');
+  try{const pm=await pdfmakeReady();pm.createPdf(dd).download(nome);toast('PDF creato: controlla i download');}
+  catch(e){toast('Non riesco a creare il PDF: '+(e.message||e),4500);}
+  finally{setBusy('');}
+}
+const nomeFile=(pre,m)=>(pre+' '+[m.marca,m.modello,m.targa].filter(Boolean).join(' ')).replace(/[^\w\- àèéìòù]/g,'').trim().replace(/\s+/g,'_')+'.pdf';
+
+async function creaContratto(){
+  readForm(); const m=draft;
+  const sc=await pickDialog('Chi compra la moto nel contratto?',sociOpts(false),'Avanti'); if(!sc)return;
+  const K=acquirente(+sc.socio);
+  const prezzo=n(m.nettoVenditore)||n(m.offertaFatta);
+  const manca=[];
+  [['venditore','nome del venditore'],['venditoreCF','codice fiscale del venditore'],['venditoreIndirizzo','indirizzo del venditore'],['venditoreNascita','data di nascita del venditore'],['marca','marca'],['modello','modello'],['telaio','telaio'],['targa','targa']].forEach(([k,l])=>{if(!String(m[k]||'').trim())manca.push(l)});
+  if(!prezzo)manca.push('prezzo di acquisto');
+  if(!K.nome||!K.cf)manca.push('i dati di '+soci()[+sc.socio]+' (Impostazioni)');
+  if(!m.dataPassaggio)manca.push('data del passaggio di proprietà (Agenzia pratiche)');
+  if(m.venditoreCF&&!/^[A-Z0-9]{16}$/.test(String(m.venditoreCF).replace(/\s/g,'')))manca.push('codice fiscale del venditore (formato da controllare)');
+  if(m.fermiAmministrativi==='Sì'&&!await confirmBox('Nella perizia risultano FERMI AMMINISTRATIVI, ma il contratto fa dichiarare al venditore che il veicolo ne è libero. Vuoi crearlo comunque?','Crea comunque','Annulla'))return;
+  if(manca.length&&!await confirmBox('Mancano: '+manca.join(', ')+'. Nel PDF resteranno righe vuote da compilare a mano. Procedo?','Crea PDF','Annulla'))return;
+  const chiavi=m.secondaChiave==='Sì'?'2 (due)':m.secondaChiave==='Non disponibile'?'1 (una)':'n. ____';
+  const difetti=String(m.difetti||'').trim().replace(/[.;,\s]+$/,'');
+  const incid=m.incidentata==='Sì';
+  const P=(t,o={})=>Object.assign({text:t,margin:[0,0,0,4],alignment:'justify'},o);
+  const B=t=>({text:t,bold:true});
+  const passaggio=m.dataPassaggio?`${fmtIT(m.dataPassaggio)} alle ore ${m.oraPassaggio||'____:____'}`:'____/____/________ alle ore ____:____';
+  const dd={pageSize:'A4',pageMargins:[38,34,38,30],defaultStyle:{fontSize:8.6,lineHeight:1.12},
+   info:{title:'Contratto di compravendita '+titolo(m)},
+   content:[
+    {text:'SCRITTURA PRIVATA DI COMPRAVENDITA DI MOTOVEICOLO USATO',bold:true,fontSize:11.5,alignment:'center',margin:[0,0,0,8]},
+    P(['Tra ',B(v_(m.venditore)),', nato/a a ',v_(m.venditoreNascitaLuogo,'______________'),' il ',v_(fmtIT(m.venditoreNascita),'____/____/______'),', residente in ',v_(m.venditoreIndirizzo,'________________________________________'),', C.F. ',B(v_(String(m.venditoreCF||'').toUpperCase(),'________________')),', di seguito «Venditore»,'] ),
+    P(['e ',B(v_(K.nome)),', nato/a a ',v_(K.nascitaLuogo,'______________'),' il ',v_(fmtIT(K.nascitaData),'____/____/______'),', residente in ',v_(K.indirizzo,'________________________________________'),', C.F./P.IVA ',B(v_(K.cf,'________________')),', di seguito «Acquirente»,']),
+    P('si conviene e si stipula quanto segue.',{margin:[0,0,0,6]}),
+    P([B('1. Oggetto. '),'Il Venditore vende all\'Acquirente, che accetta, il motoveicolo marca ',B(v_(m.marca,'__________')),' modello ',B(v_(m.modello,'______________')),', targa ',B(v_(m.targa,'__________')),', telaio ',B(v_(m.telaio,'_____________________')),', prima immatricolazione ',v_(fmtIT(m.primaImmatricolazione),'____/____/______'),', chilometri indicati dal contachilometri ',v_(m.km?n(m.km).toLocaleString('it-IT'):'','________'),' (di seguito «Veicolo»).']),
+    P([B('2. Prezzo e pagamento. '),'Il prezzo è convenuto in ',B(prezzo?eur(prezzo):'€ __________'),' (',prezzo?'euro '+numLettere(prezzo)+'/00':'euro ________________________/00',') da corrispondere con mezzo tracciabile (bonifico o assegno) contestualmente alla sottoscrizione dell\'atto di vendita con firma autenticata. Con la sottoscrizione del presente atto e l\'incasso del prezzo il Venditore rilascia ampia e definitiva quietanza.']),
+    P([B('3. Dichiarazioni e garanzie del Venditore. '),'Il Venditore dichiara e garantisce, assumendosene ogni responsabilità, che: a) è unico e legittimo proprietario del Veicolo e ne ha la piena disponibilità; b) il Veicolo è libero da fermi amministrativi, ipoteche, privilegi, pignoramenti, sequestri, leasing, finanziamenti in corso e diritti di terzi; c) il chilometraggio indicato è reale e non è stato alterato; d) ',incid?'gli incidenti subiti dal Veicolo sono quelli indicati al punto 4':'il Veicolo non ha subito incidenti o danni tali da comprometterne struttura, telaio o sicurezza',', e) non sono presenti vizi o difetti a lui noti diversi da quelli indicati al punto 4; f) le tasse automobilistiche sono state regolarmente pagate fino alla data del passaggio di proprietà e non vi sono sanzioni o contestazioni pendenti relative al Veicolo.']),
+    P([B('4. Stato del Veicolo. '),'L\'Acquirente dichiara di aver visionato il Veicolo. Difetti e danni dichiarati dal Venditore: ',difetti?{text:difetti,italics:true}:'nessuno','.']),
+    P([B('5. Passaggio di proprietà, responsabilità e ritiro. '),'Il passaggio di proprietà avviene il ',B(passaggio),'. Sanzioni, multe, pedaggi, tasse e ogni responsabilità civile, penale e amministrativa per fatti avvenuti fino a tale data e ora restano a carico del Venditore; quelli successivi sono a carico dell\'Acquirente. Se il ritiro del Veicolo avviene in un momento successivo, anche tramite trasportatore incaricato dall\'Acquirente, il Venditore lo custodisce fino al ritiro con la diligenza del buon padre di famiglia, si impegna a non utilizzarlo e risponde di danni, furti o ammanchi a lui imputabili. Al ritiro il Venditore consegna: carta di circolazione / documento unico, certificato di proprietà (anche digitale), chiavi ',chiavi,m.librettoServizi==='Sì'?', libretto dei tagliandi':'','.']),
+    P([B('6. Atto di vendita. '),'Le parti si impegnano a sottoscrivere l\'atto di vendita con firma autenticata (STA, agenzia di pratiche auto o Comune) per la trascrizione al PRA entro i termini di legge. Il Venditore si impegna a fornire ogni documento necessario. I costi del passaggio di proprietà sono a carico dell\'Acquirente.']),
+    P([B('7. Dichiarazioni non veritiere. '),'Se le dichiarazioni del punto 3 risultano non veritiere, l\'Acquirente potrà, a sua scelta, chiedere la risoluzione del contratto con la restituzione integrale del prezzo e il rimborso delle spese sostenute, oppure la riduzione del prezzo, oltre in ogni caso al risarcimento del danno. Resta salva la garanzia per i vizi della cosa venduta prevista dagli artt. 1490 e seguenti del Codice Civile.']),
+    P([B('8. Dati personali. '),'I dati delle parti sono trattati esclusivamente per l\'esecuzione del presente contratto e per gli adempimenti di legge (Reg. UE 2016/679).'],{margin:[0,0,0,10]}),
+    {text:'Luogo e data: ______________________________',margin:[0,0,0,16]},
+    {columns:[{text:'Il Venditore\n\n\n_______________________________',alignment:'center'},{text:'L\'Acquirente\n\n\n_______________________________',alignment:'center'}],margin:[0,0,0,12]},
+    P('Ai sensi e per gli effetti degli artt. 1341 e 1342 del Codice Civile, il Venditore dichiara di aver letto e di approvare specificamente i punti 3 (Dichiarazioni e garanzie), 5 (Passaggio di proprietà, responsabilità e ritiro) e 7 (Dichiarazioni non veritiere).',{fontSize:8}),
+    {columns:[{text:'Il Venditore\n\n\n_______________________________',alignment:'center'},{text:''}],margin:[0,4,0,0]},
+   ]};
+  scarica(dd,nomeFile('Contratto',m));
+}
+
+async function imgPerPdf(a){
+  // scarica la foto originale e la riduce a JPEG (anche per formati non leggibili da pdfmake)
+  try{
+    const r=await api('file',{id:a.id});
+    const src='data:'+r.mime+';base64,'+r.data;
+    const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=src;});
+    const s=Math.min(1,1400/Math.max(img.naturalWidth,img.naturalHeight));
+    const cv=document.createElement('canvas');cv.width=Math.round(img.naturalWidth*s);cv.height=Math.round(img.naturalHeight*s);
+    cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
+    return cv.toDataURL('image/jpeg',.82);
+  }catch(_){return thumbCache[a.id]&&/^data:image\/(jpeg|png)/.test(thumbCache[a.id])?thumbCache[a.id]:null;}
+}
+async function creaScheda(){
+  readForm(); const m=draft;
+  const foto=(m.allegati||[]).filter(a=>/^image\//.test(a.type));
+  const pre=foto.find(a=>a.id===m.fotoCopertina)||foto.find(a=>a.cat==='Foto moto')||foto[0];
+  const body=`<div class="plabel">Nome e telefono in fondo alla scheda</div>${sociOpts(true)}
+    <div class="plabel">Foto di copertina</div><div class="pgrid">${foto.map(a=>`<label title="${esc(a.nome)}"><input type="radio" name="foto" value="${esc(a.id)}" ${pre&&pre.id===a.id?'checked':''}><span class="pth" data-thumb="${esc(a.id)}">…</span></label>`).join('')}<label><input type="radio" name="foto" value="" ${pre?'':'checked'}>Nessuna foto</label></div>`;
+  const sc=await pickDialog('Scheda moto per l\'acquirente',body); if(!sc)return;
+  const K=+sc.socio>=0?acquirente(+sc.socio):{}; if(+sc.socio>=0&&!K.nome)K.nome=soci()[+sc.socio];
+  if(sc.foto!==undefined&&sc.foto!==(m.fotoCopertina||''))m.fotoCopertina=sc.foto;
+  const imgs=[];
+  if(sc.foto){setBusy('Preparo la foto…');const a=foto.find(x=>x.id===sc.foto);const d=a&&await imgPerPdf(a);if(d)imgs.push(d);setBusy('');}
+  const c=calc(m), rev=c.sc.find(x=>x.k==='rev');
+  const riga=(l,v)=>v===undefined||v===null||String(v).trim()===''?null:[{text:l,color:'#6d6a63'},{text:String(v),bold:true}];
+  const tab=(titoloT,rows)=>{rows=rows.filter(Boolean);if(!rows.length)return null;return [{unbreakable:true,stack:[{text:titoloT,style:'h'},{table:{widths:['40%','60%'],body:rows},layout:{hLineColor:'#e3dfd7',vLineWidth:()=>0,hLineWidth:(i)=>i===0?0:.6,paddingTop:()=>4,paddingBottom:()=>4}}]}];};
+  const veic=tab('Dati del veicolo',[
+    riga('Marca',m.marca),riga('Modello',m.modello),riga('Anno',m.anno),riga('Prima immatricolazione',fmtIT(m.primaImmatricolazione)),
+    riga('Chilometri',m.km?n(m.km).toLocaleString('it-IT')+' km':''),riga('Cilindrata',m.cilindrata?m.cilindrata+' cc':''),
+    riga('Potenza',m.kw||m.cv?[m.kw?m.kw+' kW':'',m.cv?m.cv+' CV':''].filter(Boolean).join(' / '):''),
+    riga('Classe ambientale',m.classeInquinante),riga('ABS',m.abs?'Sì':''),riga('Numero proprietari',m.numeroProprietari),
+    riga('Targa',m.targa),riga('Telaio',m.telaio)]);
+  const man=tab('Manutenzione e documenti',[
+    riga('Ultimo tagliando',[fmtIT(m.dataUltimoTagliando),m.kmUltimoTagliando?n(m.kmUltimoTagliando).toLocaleString('it-IT')+' km':''].filter(Boolean).join(' – ')),
+    riga('Ultima revisione',fmtIT(m.ultimaRevisione)),riga('Prossima revisione',rev?fmtIT(rev.d):''),
+    riga('Scadenza bollo',fmtIT(m.scadenzaBollo)),riga('Libretto tagliandi',m.librettoServizi),riga('Seconda chiave',m.secondaChiave),
+    riga('Fermi amministrativi',m.fermiAmministrativi==='No'?'Nessuno':m.fermiAmministrativi)]);
+  const stato=tab('Stato del veicolo',[
+    riga('Condizioni generali',m.statoGenerale),riga('Gomma anteriore',m.gommaAnt),riga('Gomma posteriore',m.gommaPost),
+    riga('Pastiglie freni',m.pastiglie==='Sostituire'?'Da sostituire':m.pastiglie),riga('Batteria',m.batteria==='Sostituire'?'Da sostituire':m.batteria),
+    riga('Impianto elettrico',[m.impianto,m.impiantoNote].filter(Boolean).join(' – ')),riga('Incidentata',m.incidentata)]);
+  const testo=(t,v)=>String(v||'').trim()?[{unbreakable:true,stack:[{text:t,style:'h'},{text:String(v).trim()}]}]:null;
+  const content=[
+    {columns:[{stack:[{text:titolo(m),fontSize:20,bold:true},{text:[m.anno,m.km?n(m.km).toLocaleString('it-IT')+' km':'',m.cilindrata?m.cilindrata+' cc':''].filter(Boolean).join(' · '),color:'#6d6a63',fontSize:11,margin:[0,2,0,0]}]},
+      {text:'Scheda veicolo',alignment:'right',color:'#e2561d',bold:true,fontSize:11}],margin:[0,0,0,10]},
+  ];
+  if(imgs[0])content.push({image:imgs[0],fit:[519,260],alignment:'center',margin:[0,0,0,6]});
+  [veic,man,stato,testo('Accessori',m.accessoriNote),testo('Pezzi originali',m.pezziOriginali),testo('Difetti dichiarati',m.difetti)].forEach(x=>{if(x)content.push(...x)});
+  const dd={pageSize:'A4',pageMargins:[38,36,38,44],defaultStyle:{fontSize:10},info:{title:'Scheda '+titolo(m)},
+    styles:{h:{fontSize:12,bold:true,color:'#1c1b19',margin:[0,12,0,4]}},content,
+    footer:(cur,tot)=>({margin:[38,10,38,0],columns:[{text:'Scheda informativa del '+new Date().toLocaleDateString('it-IT')+(K.nome?' · '+K.nome:'')+(K.telefono?' · Tel. '+K.telefono:''),fontSize:8,color:'#6d6a63',width:'*'},{text:cur+'/'+tot,alignment:'right',fontSize:8,color:'#6d6a63',width:30}]})};
+  scarica(dd,nomeFile('Scheda',m));
 }
 
 /* ---------- ACCESSO E MOTORE ---------- */
