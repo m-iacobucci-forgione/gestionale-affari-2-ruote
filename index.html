@@ -196,7 +196,7 @@ const soci = () => (state.config.soci && state.config.soci.length ? state.config
 const SI_NO = ['Sì','No'];
 
 const SEZIONI = [
- {id:'veic', t:'Veicolo', open:true, f:[
+ {id:'veic', t:'🏍️ Veicolo, documenti e scadenze', open:true, f:[
   {k:'marca',l:'Marca'},{k:'modello',l:'Modello'},
   {k:'primaImmatricolazione',l:'Prima immatricolazione',ty:'date'},
   {k:'cilindrata',l:'Cilindrata (cc)',ty:'number'},
@@ -208,8 +208,6 @@ const SEZIONI = [
   {k:'classeInquinante',l:'Classe inquinante',ty:'select',o:['','Euro 0','Euro 1','Euro 2','Euro 3','Euro 4','Euro 5','Euro 5+']},
   {k:'numeroProprietari',l:'Numero proprietari',ty:'number'},
   {k:'abs',l:'ABS',ty:'check'},
- ]},
- {id:'doc', t:'Documenti, scadenze e consegna', f:[
   {k:'dataUltimoTagliando',l:'Data ultimo tagliando',ty:'date',sc:'tagl'},
   {k:'kmUltimoTagliando',l:'Km ultimo tagliando',ty:'number'},
   {k:'ultimaRevisione',l:'Ultima revisione',ty:'date',sc:'rev'},
@@ -220,7 +218,7 @@ const SEZIONI = [
   {k:'oraConsegna',l:'Ora consegna',ty:'time'},
   {k:'accessoriNote',l:'Accessori / note',ty:'textarea',w:1},
  ]},
- {id:'perizia', t:'Perizia', f:[
+ {id:'perizia', t:'🔍 Perizia', f:[
   {k:'statoGenerale',l:'Stato',ty:'radio',o:['Sufficiente','Buono','Ottimo']},
   {k:'gommaAnt',l:'Gomma anteriore',ty:'select',o:['','Nuova','75%','50%','25%','Da sostituire']},
   {k:'gommaPost',l:'Gomma posteriore',ty:'select',o:['','Nuova','75%','50%','25%','Da sostituire']},
@@ -237,8 +235,8 @@ const SEZIONI = [
   {k:'pezziOriginali',l:'Lista pezzi originali',ty:'textarea',w:1},
   {k:'difetti',l:'Difetti',ty:'textarea',w:1},
  ]},
- {id:'costi', t:'Spese (trasporto, manutenzione, pratiche)', open:true, costs:1},
- {id:'tratt', t:'Trattativa', open:true, f:[
+ {id:'costi', t:'💶 Spese (trasporto, manutenzione, pratiche)', open:true, costs:1},
+ {id:'tratt', t:'🤝 Trattativa', open:true, f:[
   {k:'stato',l:'Stato pratica',ty:'select',o:STATI},
   {k:'fonte',l:'Fonte annuncio',ty:'select',o:['','Subito','Moto.it','AutoScout24','Facebook Marketplace','Wallapop','eBay','Passaparola','Altro']},
   {k:'link',l:'Link annuncio',ty:'url'},
@@ -247,27 +245,26 @@ const SEZIONI = [
   {k:'cittaVenditore',l:'Città / zona venditore'},
   {k:'prezzoRichiesto',l:'Prezzo richiesto in annuncio (€)',ty:'number'},
   {k:'prezzoStimato',l:'Prezzo di vendita stimato (€)',ty:'number'},
-  {calc:'offerta'},
   {k:'offertaFatta',l:'Offerta fatta (€)',ty:'number'},
   {k:'nettoVenditore',l:'Prezzo di acquisto effettivo (€)',ty:'number'},
   {k:'noteTrattativa',l:'Note trattativa',ty:'textarea',w:1},
  ]},
- {id:'agenzia', t:'Agenzia pratiche', f:[
+ {id:'agenzia', t:'🏢 Agenzia pratiche', f:[
   {k:'agenziaNome',l:'Nome agenzia'},
   {k:'agenziaTelefono',l:'Numero di telefono',ty:'tel'},
   {k:'agenziaNote',l:'Note',ty:'textarea',w:1},
  ]},
- {id:'vend', t:'Vendita', f:[
-  {k:'prezzoVendita',l:'Prezzo di vendita effettivo (€)',ty:'number',h:'Compilalo quando la moto è venduta: sostituisce il prezzo stimato nel calcolo.'},
+ {id:'vend', t:'✅ Vendita', f:[
+  {k:'prezzoVendita',l:'Prezzo di vendita effettivo (€)',ty:'number',h:'Appena lo inserisci sostituisce il prezzo stimato e aggiorna il netto.'},
   {k:'dataVendita',l:'Data vendita',ty:'date',h:'Si compila da sola con la data di oggi quando metti lo stato "Venduta".'},
   {k:'acquirente',l:'Acquirente'},
   {k:'telefonoAcquirente',l:'Telefono acquirente',ty:'tel'},
   {k:'canaleVendita',l:'Canale vendita',ty:'select',o:['','Subito','Moto.it','AutoScout24','Facebook Marketplace','Grossista','Passaparola','Altro']},
  ]},
- {id:'all', t:'Foto e documenti', open:true, atts:1},
+ {id:'all', t:'📷 Foto e documenti', open:true, atts:1},
 ];
 
-const ORDINE=['veic','doc','perizia','costi','tratt','agenzia','vend','all'];
+const ORDINE=['veic','perizia','costi','tratt','agenzia','vend','all'];
 SEZIONI.sort((x,y)=>ORDINE.indexOf(x.id)-ORDINE.indexOf(y.id));
 
 const state = {motos:[], config:{soci:['Manuel','Lorenzo'], aliquota:0}, busy:'', email:'', loadErr:false, view:'lista', filtro:'attive', q:'', loaded:false, err:'', readOnly:false, uploading:0};
@@ -314,7 +311,7 @@ function calc(m){
   const costi=(m.costi||[]).reduce((s,c)=>s+n(c.importo),0)+bollo+revis;
   const acq=n(m.nettoVenditore);
   const venduta=m.stato==='Venduta';
-  const ricavo=venduta&&n(m.prezzoVendita)?n(m.prezzoVendita):(n(m.prezzoStimato)||n(m.prezzoPubblico));
+  const ricavo=n(m.prezzoVendita)||n(m.prezzoStimato)||n(m.prezzoPubblico);
   const ok=acq>0&&ricavo>0;
   const lordo=ricavo-acq-costi;
   const tasse=lordo>0?lordo*aliq/100:0;
@@ -326,7 +323,7 @@ function calc(m){
   if(inizio){const a=new Date(inizio),b=venduta&&m.dataVendita?new Date(m.dataVendita):new Date();giorni=Math.max(0,Math.round((b-a)/864e5));}
   const anticipi={};
   (m.costi||[]).forEach(c=>{if(c.pagatoDa&&n(c.importo))anticipi[c.pagatoDa]=(anticipi[c.pagatoDa]||0)+n(c.importo)});
-  return {costi,acq,ricavo,ok,lordo,tasse,netto,offerta,margRich,stima,giorni,venduta,anticipi,inAttesa,sc,stimato:!venduta||!n(m.prezzoVendita)};
+  return {costi,acq,ricavo,ok,lordo,tasse,netto,offerta,margRich,stima,giorni,venduta,anticipi,inAttesa,sc,stimato:!n(m.prezzoVendita)};
 }
 const SC_TXT={green:'In regola',yellow:'Scade entro un mese',red:'Scaduto'};
 const scChip=s=>`<span class="sdot s-${s.col}">${esc(s.l)} ${esc(fmtD(s.d))}</span>`;
@@ -529,8 +526,9 @@ function bindEditor(){
   $('#edx').onclick=async()=>{
     readForm();
     if(!state.readOnly&&JSON.stringify(draft)!==savedJSON){
-      const s=await confirmBox('Hai modifiche non salvate. Vuoi salvarle prima di uscire?','Salva ed esci','Esci senza salvare');
-      if(s){const ok=await save();if(!ok)return;toast('Salvato');}
+      const ok=await save();
+      if(!ok){if(await confirmBox('Salvataggio non riuscito. Vuoi uscire comunque perdendo le modifiche?','Esci senza salvare','Resta qui'))closeEditor();return;}
+      toast('Modifiche salvate');
     }
     closeEditor();};
   ed.querySelectorAll('.radios input').forEach(r=>{r.dataset.was=r.checked?'1':'0';r.onclick=()=>{
