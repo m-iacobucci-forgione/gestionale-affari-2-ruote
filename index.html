@@ -256,7 +256,11 @@ const SEZIONI = [
   {k:'link',l:'Link annuncio',ty:'url'},
   {k:'venditore',l:'Venditore (nome e cognome)'},
   {k:'venditoreCF',l:'Codice fiscale venditore',up:1},
-  {k:'venditoreIndirizzo',l:'Indirizzo di residenza venditore',w:1},
+  {k:'venditoreVia',l:'Indirizzo di residenza venditore (via/piazza)',w:1,h:'Es. Via Vittorio Avondo'},
+  {k:'venditoreCivico',l:'Numero civico',max:10},
+  {k:'venditoreCap',l:'CAP',max:5,im:'numeric'},
+  {k:'venditoreCitta',l:'Città'},
+  {k:'venditoreProv',l:'Provincia (sigla)',up:1,max:2,h:'Es. AO'},
   {k:'venditoreNascitaLuogo',l:'Luogo di nascita venditore'},
   {k:'venditoreNascita',l:'Data di nascita venditore',ty:'date'},
   {k:'telefono',l:'Telefono venditore',ty:'tel'},
@@ -443,7 +447,11 @@ function viewImp(){
    ${[0,1].map(i=>{const K=acquirente(i);return `<div style="border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px"><div style="font-weight:700;margin-bottom:8px">${esc(s[i]||'Socio '+(i+1))}</div>
    <div class="f"><label>Nome e cognome</label><input type="text" id="k${i}_nome" value="${esc(K.nome)}"></div>
    <div class="f"><label>Codice fiscale</label><input type="text" id="k${i}_cf" value="${esc(K.cf)}" style="text-transform:uppercase"></div>
-   <div class="f"><label>Indirizzo di residenza</label><input type="text" id="k${i}_ind" value="${esc(K.indirizzo)}"></div>
+   <div class="f"><label>Indirizzo di residenza (via/piazza)</label><input type="text" id="k${i}_via" value="${esc(K.via||(!K.citta?K.indirizzo:'')||'')}"></div>
+   <div class="f"><label>Numero civico</label><input type="text" id="k${i}_civ" maxlength="10" value="${esc(K.civico)}"></div>
+   <div class="f"><label>CAP</label><input type="text" id="k${i}_cap" maxlength="5" inputmode="numeric" value="${esc(K.cap)}"></div>
+   <div class="f"><label>Città</label><input type="text" id="k${i}_citta" value="${esc(K.citta)}"></div>
+   <div class="f"><label>Provincia (sigla)</label><input type="text" id="k${i}_prov" maxlength="2" style="text-transform:uppercase" value="${esc(K.prov)}"></div>
    <div class="f"><label>Luogo di nascita</label><input type="text" id="k${i}_nl" value="${esc(K.nascitaLuogo)}"></div>
    <div class="f"><label>Data di nascita</label><input type="date" id="k${i}_nd" value="${esc(K.nascitaData)}"></div>
    <div class="f"><label>Telefono</label><input type="tel" id="k${i}_tel" value="${esc(K.telefono)}"></div></div>`}).join('')}
@@ -457,7 +465,7 @@ function bindView(){
   const q=$('#q'); if(q){q.oninput=e=>{state.q=e.target.value;const pos=e.target.selectionStart;render();const nq=$('#q');nq.focus();try{nq.setSelectionRange(pos,pos)}catch(_){}}}
   const sv=$('#saveimp'); if(sv)sv.onclick=async()=>{
     const cfg={soci:[$('#s1').value.trim()||'Socio 1',$('#s2').value.trim()||'Socio 2'],aliquota:n($('#aliq').value),
-      acquirenti:[0,1].map(i=>({nome:$('#k'+i+'_nome').value.trim(),cf:$('#k'+i+'_cf').value.trim().toUpperCase(),indirizzo:$('#k'+i+'_ind').value.trim(),nascitaLuogo:$('#k'+i+'_nl').value.trim(),nascitaData:$('#k'+i+'_nd').value,telefono:$('#k'+i+'_tel').value.trim()}))};
+      acquirenti:[0,1].map(i=>({nome:$('#k'+i+'_nome').value.trim(),cf:$('#k'+i+'_cf').value.trim().toUpperCase(),via:$('#k'+i+'_via').value.trim(),civico:$('#k'+i+'_civ').value.trim(),cap:$('#k'+i+'_cap').value.trim(),citta:$('#k'+i+'_citta').value.trim(),prov:$('#k'+i+'_prov').value.trim().toUpperCase(),indirizzo:'',nascitaLuogo:$('#k'+i+'_nl').value.trim(),nascitaData:$('#k'+i+'_nd').value,telefono:$('#k'+i+'_tel').value.trim()}))};
     setBusy('Salvataggio…');try{await api('config',{config:cfg});state.config={...state.config,...cfg};toast('Impostazioni salvate');render();}catch(e){if(!e.auth)toast('Errore: '+(e.error||e.message))}finally{setBusy('')}};
   const csv=$('#csv'); if(csv)csv.onclick=async()=>{
     const cols=['codice','stato','marca','modello','anno','km','targa','telaio','venditore','telefono','fonte','link','nettoVenditore','prezzoStimato','prezzoVendita','dataConsegna','dataVendita','scadenzaBollo','agenziaNome'];
@@ -473,6 +481,7 @@ function openEditor(id){
   if(id&&!m){toast('Scheda non trovata');return;}
   draft=m?JSON.parse(JSON.stringify(m)):blank(); draftIsNew=!m; draftBase=m?m.updatedAt:null; remoteChanged=false;
   draft.costi=draft.costi||[]; draft.allegati=draft.allegati||[];
+  if(draft.venditoreIndirizzo&&!draft.venditoreVia&&!draft.venditoreCitta){draft.venditoreVia=draft.venditoreIndirizzo;}
   renderEditor(); readForm(); savedJSON=JSON.stringify(draft); $('#ed').classList.add('open'); $('#ed').scrollTop=0; document.body.style.overflow='hidden';
 }
 function closeEditor(){draft=null;$('#ed').classList.remove('open');$('#ed').innerHTML='';document.body.style.overflow='';render();}
@@ -486,7 +495,7 @@ function fieldHTML(f){
   else if(f.ty==='radio')inp=`<div class="radios" data-k="${f.k}" data-radio="1">${opts.map(x=>`<label><input type="radio" name="${id}" value="${esc(x)}" ${x===v?'checked':''} ${dis}>${esc(x)}</label>`).join('')}</div>`;
   else if(f.ty==='check')return `<div class="f"><label class="chk"><input type="checkbox" data-k="${f.k}" ${v?'checked':''} ${dis}> ${esc(f.l)}</label></div>`;
   else if(f.ty==='textarea')inp=`<textarea id="${id}" data-k="${f.k}" ${dis}>${esc(v)}</textarea>`;
-  else inp=`<input id="${id}" type="${f.ty||'text'}" data-k="${f.k}" value="${esc(v)}" ${f.ty==='number'?'inputmode="decimal" step="any"':''} ${f.up?'style="text-transform:uppercase"':''} ${dis}>`;
+  else inp=`<input id="${id}" type="${f.ty||'text'}" data-k="${f.k}" value="${esc(v)}" ${f.ty==='number'?'inputmode="decimal" step="any"':''} ${f.im?`inputmode="${f.im}"`:''} ${f.max?`maxlength="${f.max}"`:''} ${f.up?'style="text-transform:uppercase"':''} ${dis}>`;
   return `<div class="f ${f.w||f.ty==='textarea'?'w':''}"><label for="${id}">${esc(f.l)}</label>${inp}${f.h?`<div class="hint">${esc(f.h)}</div>`:''}${f.sc?`<div class="scst" id="sc_${f.sc}"></div>`:''}</div>`;
 }
 function costsHTML(){
@@ -696,6 +705,16 @@ function pdfHTML(){
     <div class="hint" style="margin-top:8px">Il contratto usa i dati del venditore (Trattativa), del veicolo e i vostri dati (Impostazioni). La scheda moto non contiene prezzi d'acquisto, spese né dati del venditore.</div></div>`;
 }
 let pdfLib=null;
+function fmtInd(via,civ,cap,citta,prov,vecchio){
+  via=String(via||'').trim();civ=String(civ||'').trim();cap=String(cap||'').trim();citta=String(citta||'').trim();prov=String(prov||'').trim().toUpperCase();
+  if(!via&&!civ&&!cap&&!citta&&!prov)return String(vecchio||'').trim();
+  let s=via;if(civ)s+=(s?', ':'')+civ;
+  const loc=[cap,citta].filter(Boolean).join(' ');if(loc)s+=(s?', ':'')+loc;
+  if(prov)s+=' ('+prov+')';
+  return s;
+}
+const indVend=m=>fmtInd(m.venditoreVia,m.venditoreCivico,m.venditoreCap,m.venditoreCitta,m.venditoreProv,m.venditoreIndirizzo);
+const indSocio=K=>fmtInd(K.via,K.civico,K.cap,K.citta,K.prov,K.indirizzo);
 function acquirente(i){const A=state.config.acquirenti||[];return A[i]||(i===0?state.config.contratto:null)||{};}
 function pickDialog(title,bodyHTML,okLabel){return new Promise(res=>{
   $('#ptitle').textContent=title;$('#pbody').innerHTML=bodyHTML;$('#pok').textContent=okLabel||'Crea PDF';$('#pick').classList.add('open');applyThumbs();
@@ -740,8 +759,10 @@ async function creaContratto(){
   const K=acquirente(+sc.socio);
   const prezzo=n(m.nettoVenditore)||n(m.offertaFatta);
   const manca=[];
-  [['venditore','nome del venditore'],['venditoreCF','codice fiscale del venditore'],['venditoreIndirizzo','indirizzo del venditore'],['venditoreNascita','data di nascita del venditore'],['marca','marca'],['modello','modello'],['telaio','telaio'],['targa','targa']].forEach(([k,l])=>{if(!String(m[k]||'').trim())manca.push(l)});
+  [['venditore','nome del venditore'],['venditoreCF','codice fiscale del venditore'],['venditoreNascita','data di nascita del venditore'],['marca','marca'],['modello','modello'],['telaio','telaio'],['targa','targa']].forEach(([k,l])=>{if(!String(m[k]||'').trim())manca.push(l)});
   if(!prezzo)manca.push('prezzo di acquisto');
+  if(!indVend(m))manca.push('indirizzo del venditore');
+  else if(!m.venditoreCap||!m.venditoreCitta||!m.venditoreProv)manca.push('CAP, città o provincia del venditore');
   if(!K.nome||!K.cf)manca.push('i dati di '+soci()[+sc.socio]+' (Impostazioni)');
   if(!m.dataPassaggio)manca.push('data del passaggio di proprietà (Agenzia pratiche)');
   if(m.venditoreCF&&!/^[A-Z0-9]{16}$/.test(String(m.venditoreCF).replace(/\s/g,'')))manca.push('codice fiscale del venditore (formato da controllare)');
@@ -750,15 +771,15 @@ async function creaContratto(){
   const chiavi=m.secondaChiave==='Sì'?'2 (due)':m.secondaChiave==='Non disponibile'?'1 (una)':'n. ____';
   const difetti=String(m.difetti||'').trim().replace(/[.;,\s]+$/,'');
   const incid=m.incidentata==='Sì';
-  const P=(t,o={})=>Object.assign({text:t,margin:[0,0,0,4],alignment:'justify'},o);
+  const P=(t,o={})=>Object.assign({text:t,margin:[0,0,0,9],alignment:'justify'},o);
   const B=t=>({text:t,bold:true});
   const passaggio=m.dataPassaggio?`${fmtIT(m.dataPassaggio)} alle ore ${m.oraPassaggio||'____:____'}`:'____/____/________ alle ore ____:____';
   const dd={pageSize:'A4',pageMargins:[38,34,38,30],defaultStyle:{fontSize:8.6,lineHeight:1.12},
    info:{title:'Contratto di compravendita '+titolo(m)},
    content:[
     {text:'SCRITTURA PRIVATA DI COMPRAVENDITA DI MOTOVEICOLO USATO',bold:true,fontSize:11.5,alignment:'center',margin:[0,0,0,8]},
-    P(['Tra ',B(v_(m.venditore)),', nato/a a ',v_(m.venditoreNascitaLuogo,'______________'),' il ',v_(fmtIT(m.venditoreNascita),'____/____/______'),', residente in ',v_(m.venditoreIndirizzo,'________________________________________'),', C.F. ',B(v_(String(m.venditoreCF||'').toUpperCase(),'________________')),', di seguito «Venditore»,'] ),
-    P(['e ',B(v_(K.nome)),', nato/a a ',v_(K.nascitaLuogo,'______________'),' il ',v_(fmtIT(K.nascitaData),'____/____/______'),', residente in ',v_(K.indirizzo,'________________________________________'),', C.F./P.IVA ',B(v_(K.cf,'________________')),', di seguito «Acquirente»,']),
+    P(['Tra ',B(v_(m.venditore)),', nato/a a ',v_(m.venditoreNascitaLuogo,'______________'),' il ',v_(fmtIT(m.venditoreNascita),'____/____/______'),', residente in ',v_(indVend(m),'________________________________________'),', C.F. ',B(v_(String(m.venditoreCF||'').toUpperCase(),'________________')),', di seguito «Venditore»,'] ),
+    P(['e ',B(v_(K.nome)),', nato/a a ',v_(K.nascitaLuogo,'______________'),' il ',v_(fmtIT(K.nascitaData),'____/____/______'),', residente in ',v_(indSocio(K),'________________________________________'),', C.F./P.IVA ',B(v_(K.cf,'________________')),', di seguito «Acquirente»,']),
     P('si conviene e si stipula quanto segue.',{margin:[0,0,0,6]}),
     P([B('1. Oggetto. '),'Il Venditore vende all\'Acquirente, che accetta, il motoveicolo marca ',B(v_(m.marca,'__________')),' modello ',B(v_(m.modello,'______________')),', targa ',B(v_(m.targa,'__________')),', telaio ',B(v_(m.telaio,'_____________________')),', prima immatricolazione ',v_(fmtIT(m.primaImmatricolazione),'____/____/______'),', chilometri indicati dal contachilometri ',v_(m.km?n(m.km).toLocaleString('it-IT'):'','________'),' (di seguito «Veicolo»).']),
     P([B('2. Prezzo e pagamento. '),'Il prezzo è convenuto in ',B(prezzo?eur(prezzo):'€ __________'),' (',prezzo?'euro '+numLettere(prezzo)+'/00':'euro ________________________/00',') da corrispondere con mezzo tracciabile (bonifico o assegno) contestualmente alla sottoscrizione dell\'atto di vendita con firma autenticata. Con la sottoscrizione del presente atto e l\'incasso del prezzo il Venditore rilascia ampia e definitiva quietanza.']),
