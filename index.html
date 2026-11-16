@@ -755,7 +755,11 @@ const nomeFile=(pre,m)=>(pre+' '+[m.marca,m.modello,m.targa].filter(Boolean).joi
 
 async function creaContratto(){
   readForm(); const m=draft;
-  const sc=await pickDialog('Chi compra la moto nel contratto?',sociOpts(false),'Avanti'); if(!sc)return;
+  const sc=await pickDialog('Contratto di acquisto',`<div class="plabel">Versione</div><div class="plist">
+      <label><input type="radio" name="ver" value="fac" checked> <span><b>Fac-simile per il venditore</b><br><span class="hint">Con filigrana e senza i vostri dati personali, da mandare prima per presa visione</span></span></label>
+      <label><input type="radio" name="ver" value="def"> <span><b>Definitivo da firmare</b><br><span class="hint">Completo di tutti i dati, per il giorno del passaggio</span></span></label></div>
+    <div class="plabel">Chi compra la moto</div>${sociOpts(false)}`,'Avanti'); if(!sc)return;
+  const fac=sc.ver==='fac';
   const K=acquirente(+sc.socio);
   const prezzo=n(m.nettoVenditore)||n(m.offertaFatta);
   const manca=[];
@@ -763,8 +767,8 @@ async function creaContratto(){
   if(!prezzo)manca.push('prezzo di acquisto');
   if(!indVend(m))manca.push('indirizzo del venditore');
   else if(!m.venditoreCap||!m.venditoreCitta||!m.venditoreProv)manca.push('CAP, città o provincia del venditore');
-  if(!K.nome||!K.cf)manca.push('i dati di '+soci()[+sc.socio]+' (Impostazioni)');
-  if(!m.dataPassaggio)manca.push('data del passaggio di proprietà (Agenzia pratiche)');
+  if(!fac&&(!K.nome||!K.cf))manca.push('i dati di '+soci()[+sc.socio]+' (Impostazioni)');
+  if(!fac&&!m.dataPassaggio)manca.push('data del passaggio di proprietà (Agenzia pratiche)');
   if(m.venditoreCF&&!/^[A-Z0-9]{16}$/.test(String(m.venditoreCF).replace(/\s/g,'')))manca.push('codice fiscale del venditore (formato da controllare)');
   if(m.fermiAmministrativi==='Sì'&&!await confirmBox('Nella perizia risultano FERMI AMMINISTRATIVI, ma il contratto fa dichiarare al venditore che il veicolo ne è libero. Vuoi crearlo comunque?','Crea comunque','Annulla'))return;
   if(manca.length&&!await confirmBox('Mancano: '+manca.join(', ')+'. Nel PDF resteranno righe vuote da compilare a mano. Procedo?','Crea PDF','Annulla'))return;
@@ -774,12 +778,15 @@ async function creaContratto(){
   const P=(t,o={})=>Object.assign({text:t,margin:[0,0,0,9],alignment:'justify'},o);
   const B=t=>({text:t,bold:true});
   const passaggio=m.dataPassaggio?`${fmtIT(m.dataPassaggio)} alle ore ${m.oraPassaggio||'____:____'}`:'____/____/________ alle ore ____:____';
+  const A=fac?{nome:K.nome||soci()[+sc.socio]}:K;
   const dd={pageSize:'A4',pageMargins:[38,34,38,30],defaultStyle:{fontSize:8.6,lineHeight:1.12},
+   watermark:fac?{text:'FAC-SIMILE',color:'#9a958c',opacity:.18,bold:true,fontSize:96}:undefined,
+   footer:fac?()=>({text:'FAC-SIMILE – Bozza per presa visione, non valida per la firma. La versione definitiva verrà firmata al passaggio di proprietà.',alignment:'center',fontSize:7.5,color:'#6d6a63',margin:[38,8,38,0]}):undefined,
    info:{title:'Contratto di compravendita '+titolo(m)},
    content:[
     {text:'SCRITTURA PRIVATA DI COMPRAVENDITA DI MOTOVEICOLO USATO',bold:true,fontSize:11.5,alignment:'center',margin:[0,0,0,8]},
     P(['Tra ',B(v_(m.venditore)),', nato/a a ',v_(m.venditoreNascitaLuogo,'______________'),' il ',v_(fmtIT(m.venditoreNascita),'____/____/______'),', residente in ',v_(indVend(m),'________________________________________'),', C.F. ',B(v_(String(m.venditoreCF||'').toUpperCase(),'________________')),', di seguito «Venditore»,'] ),
-    P(['e ',B(v_(K.nome)),', nato/a a ',v_(K.nascitaLuogo,'______________'),' il ',v_(fmtIT(K.nascitaData),'____/____/______'),', residente in ',v_(indSocio(K),'________________________________________'),', C.F./P.IVA ',B(v_(K.cf,'________________')),', di seguito «Acquirente»,']),
+    P(['e ',B(v_(A.nome)),', nato/a a ',v_(A.nascitaLuogo,'______________'),' il ',v_(fmtIT(A.nascitaData),'____/____/______'),', residente in ',v_(indSocio(A),'________________________________________'),', C.F./P.IVA ',B(v_(A.cf,'________________')),', di seguito «Acquirente»,']),
     P('si conviene e si stipula quanto segue.',{margin:[0,0,0,6]}),
     P([B('1. Oggetto. '),'Il Venditore vende all\'Acquirente, che accetta, il motoveicolo marca ',B(v_(m.marca,'__________')),' modello ',B(v_(m.modello,'______________')),', targa ',B(v_(m.targa,'__________')),', telaio ',B(v_(m.telaio,'_____________________')),', prima immatricolazione ',v_(fmtIT(m.primaImmatricolazione),'____/____/______'),', chilometri indicati dal contachilometri ',v_(m.km?n(m.km).toLocaleString('it-IT'):'','________'),' (di seguito «Veicolo»).']),
     P([B('2. Prezzo e pagamento. '),'Il prezzo è convenuto in ',B(prezzo?eur(prezzo):'€ __________'),' (',prezzo?'euro '+numLettere(prezzo)+'/00':'euro ________________________/00',') da corrispondere con mezzo tracciabile (bonifico o assegno) contestualmente alla sottoscrizione dell\'atto di vendita con firma autenticata. Con la sottoscrizione del presente atto e l\'incasso del prezzo il Venditore rilascia ampia e definitiva quietanza.']),
@@ -794,7 +801,7 @@ async function creaContratto(){
     P('Ai sensi e per gli effetti degli artt. 1341 e 1342 del Codice Civile, il Venditore dichiara di aver letto e di approvare specificamente i punti 3 (Dichiarazioni e garanzie), 5 (Passaggio di proprietà, responsabilità e ritiro) e 7 (Dichiarazioni non veritiere).',{fontSize:8}),
     {columns:[{text:'Il Venditore\n\n\n_______________________________',alignment:'center'},{text:''}],margin:[0,4,0,0]},
    ]};
-  scarica(dd,nomeFile('Contratto',m));
+  scarica(dd,nomeFile(fac?'FacSimile':'Contratto',m));
 }
 
 async function imgPerPdf(a){
